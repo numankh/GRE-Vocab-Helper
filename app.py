@@ -15,15 +15,15 @@ Flask test routes
 """
 @app.route('/')
 def hello():
-    return "Hello World!"
+    return jsonify("Hello World!")
 
 @app.route('/name/<name>')
 def hello_name(name):
-    return {'name': "numan"}
+    return jsonify({'name': "numan"})
 
 @app.route('/time')
 def get_current_time():
-    return {'time': time.time()}
+    return jsonify({'time': time.time()})
 
 @app.route('/getTableSchema')
 def get_table_schema():
@@ -38,16 +38,7 @@ def get_table_schema():
 
 @app.route('/success/<name>')
 def success(name):
-   return 'welcome %s' % name
-
-@app.route('/login', methods = ['POST', 'GET'])
-def login():
-   if request.method == 'POST':
-      user = request.form['nm']
-      return redirect(url_for('success',name = user))
-   else:
-      user = request.args.get('nm')
-      return redirect(url_for('success',name = user))
+   return jsonify('welcome %s' % name)
 
 @app.route('/bulkWords', methods = ['POST', 'GET'])
 def bulk_words():
@@ -64,16 +55,15 @@ def bulk_words():
             
             connection.commit()
             cursor.close()
-            return f"SUCCESS: added <{wordList}>"
+            return jsonify(f"SUCCESS: added <{wordList}>")
         except Exception as error:
-            return f"ERROR: <{error}>"
+            return jsonify(f"ERROR: <{error}>")
         finally:
             if connection is not None:
                 connection.close()
 
     elif request.method == 'GET':
         print("word:GET")
-        """ query data from the vendors table """
         connection = None
         try:
             cursor, connection = connect_to_db()
@@ -89,43 +79,36 @@ def bulk_words():
                 row = cursor.fetchone()
 
             cursor.close()
-            return f"SUCCESS: fetched all words: <{res_words}> with these ids: <{res_ids}>"
+            return jsonify(f"SUCCESS: fetched all words: <{res_words}> with these ids: <{res_ids}>")
         except Exception as error:
-            return f"Error: <{error}>"
+            return jsonify(f"Error: <{error}>")
         finally:
             if connection is not None:
                 connection.close()
 
-@app.route('/word', methods=['POST', 'GET'])
+@app.route('/word', methods=['POST'])
 def add_word():
-    # if not request.json or not 'word' in request.json:
-    #     abort(400)
-
     if request.method == 'POST':
-        print("word:POST")
+        sql = """INSERT INTO vocab(word) VALUES(%s) RETURNING id;"""
+        request_word = request.args.get("word")
+
         connection = None
         try:
-            sql = """INSERT INTO vocab(word) VALUES(%s) RETURNING id;"""
-            request_word = request.args.get("word")
-            print(f"WORD: <{request_word}>")
-
             cursor, connection = connect_to_db()
             cursor.execute(sql, (request_word,))
             id = cursor.fetchone()[0]
             connection.commit()
             cursor.close()
-            return f"SUCCESS: added <{request_word}> with id:<{id}> into the vocab table"
+            return jsonify(f"SUCCESS: added <{request_word}> with id:<{id}> into the vocab table")
         except Exception as error:
-            return f"Error: <{error}>"
+            return jsonify(f"Error: <{error}>")
         finally:
             if connection is not None:
                 connection.close()
 
-@app.route('/word/<id>', methods=['GET'])
+@app.route('/word/<id>', methods=['GET', 'PUT', 'DELETE'])
 def get_word_by_id(id):
     if request.method == 'GET':
-        print("word:GET")
-        """ query data from the vendors table """
         connection = None
         try:
             cursor, connection = connect_to_db()
@@ -134,13 +117,48 @@ def get_word_by_id(id):
             row = cursor.fetchone()
             print(row)
             cursor.close()
-            return f"SUCCESS: fetched <{row[0]}> with this id:<{id}>"
+            return jsonify(f"SUCCESS: fetched <{row[0]}> with this id:<{id}>")
         except Exception as error:
-            return f"Error: <{error}>"
+            return jsonify(f"Error: <{error}>")
         finally:
             if connection is not None:
                 connection.close()
-        
+    elif request.method == 'PUT':
+        sql = """ UPDATE vocab
+                SET word = %s
+                WHERE id = %s"""
+        word = request.form.get('word')
+        updated_rows = 0
+        connection = None
 
+        try:
+            cursor, connection = connect_to_db()
+            cursor.execute(sql, (word, id))
+            updated_rows = cursor.rowcount
+            connection.commit()
+            cursor.close()
+            return jsonify(f"SUCCESS: updated word:<{word}> with this id:<{id}>")
+        except Exception as error:
+            return jsonify(f"ERROR: <{error}>")
+        finally:
+            if connection is not None:
+                connection.close()
+    elif request.method == 'DELETE':
+        sql = """DELETE FROM vocab WHERE id = %s"""
+        rows_deleted = 0
+        connection = None
+
+        try:
+            cursor, connection = connect_to_db()
+            cursor.execute(sql, (id,))
+            rows_deleted = cursor.rowcount
+            connection.commit()
+            cursor.close()
+            return jsonify(f"SUCCESS: deleted word with this id:<{id}>")
+        except Exception as error:
+            return jsonify(f"ERROR: <{error}>")
+        finally:
+            if connection is not None:
+                connection.close()
 if __name__ == '__main__':
     app.run(host='0.0.0.0',port=4000)
