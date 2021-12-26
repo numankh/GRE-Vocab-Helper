@@ -40,7 +40,7 @@ def get_table_schema():
 def success(name):
    return 'welcome %s' % name
 
-@app.route('/login',methods = ['POST', 'GET'])
+@app.route('/login', methods = ['POST', 'GET'])
 def login():
    if request.method == 'POST':
       user = request.form['nm']
@@ -49,8 +49,55 @@ def login():
       user = request.args.get('nm')
       return redirect(url_for('success',name = user))
 
+@app.route('/bulkWords', methods = ['POST', 'GET'])
+def bulk_words():
+    if request.method == 'POST':
+        print("bulkWords:POST")
+        connection = None
+        try:
+            cursor, connection = connect_to_db()
+
+            wordList = request.form.getlist('word')
+            for word in wordList:
+                print(f"WORD: <{word}>")
+                cursor.execute("""INSERT into vocab(word) VALUES(%s) RETURNING id;""", (word,))
+            
+            connection.commit()
+            cursor.close()
+            return f"SUCCESS: added <{wordList}>"
+        except Exception as error:
+            return f"ERROR: <{error}>"
+        finally:
+            if connection is not None:
+                connection.close()
+
+    elif request.method == 'GET':
+        print("word:GET")
+        """ query data from the vendors table """
+        connection = None
+        try:
+            cursor, connection = connect_to_db()
+            cursor.execute("SELECT id, word FROM vocab ORDER BY word")
+            print("The number of parts: ", cursor.rowcount)
+            row = cursor.fetchone()
+
+            res_ids = []
+            res_words = []
+            while row is not None:
+                res_ids.append(row[0])
+                res_words.append(row[1])
+                row = cursor.fetchone()
+
+            cursor.close()
+            return f"SUCCESS: fetched all words: <{res_words}> with these ids: <{res_ids}>"
+        except Exception as error:
+            return f"Error: <{error}>"
+        finally:
+            if connection is not None:
+                connection.close()
+
 @app.route('/word', methods=['POST', 'GET'])
-def db_word():
+def add_word():
     # if not request.json or not 'word' in request.json:
     #     abort(400)
 
@@ -67,28 +114,27 @@ def db_word():
             id = cursor.fetchone()[0]
             connection.commit()
             cursor.close()
-            return f"Successfully added <{request_word}> with id:<{id}>into the vocab table"
+            return f"SUCCESS: added <{request_word}> with id:<{id}> into the vocab table"
         except Exception as error:
             return f"Error: <{error}>"
         finally:
             if connection is not None:
                 connection.close()
-    elif request.method == 'GET':
+
+@app.route('/word/<id>', methods=['GET'])
+def get_word_by_id(id):
+    if request.method == 'GET':
         print("word:GET")
         """ query data from the vendors table """
         connection = None
         try:
             cursor, connection = connect_to_db()
-            cursor.execute("SELECT word FROM vocab ORDER BY word")
+            cursor.execute("""SELECT word FROM vocab WHERE id = (%s)""", (id,))
             print("The number of parts: ", cursor.rowcount)
             row = cursor.fetchone()
-
-            while row is not None:
-                print(row)
-                row = cursor.fetchone()
-
+            print(row)
             cursor.close()
-            return f"Successfully fetched words"
+            return f"SUCCESS: fetched <{row[0]}> with this id:<{id}>"
         except Exception as error:
             return f"Error: <{error}>"
         finally:
