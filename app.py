@@ -48,7 +48,7 @@ def bulk_words():
         try:
             cursor, connection = connect_to_db()
 
-            wordList = request.form.getlist('word')
+            wordList = request.form.get('words').split(",")
             for word in wordList:
                 print(f"WORD: <{word}>")
                 cursor.execute("""INSERT into vocab(word) VALUES(%s) RETURNING id;""", (word,))
